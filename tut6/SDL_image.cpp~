@@ -1,0 +1,33 @@
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <stdio.h>
+#include <string>
+
+#define SCREEN_HEIGHT 1280;
+#define SCREEN_WIDTH  720;
+
+SDL_Surface *g_window = NULL;
+
+bool init();
+
+int main() {
+
+}
+
+bool init(){
+  bool l_success = true;
+  
+  if(SDL_INIT(SDL_INIT_VIDEO) < 0) {
+    printf("SDL could not initialize! SDL Error: %s\n", SDL_GetError());
+    l_success = false;
+  } else {
+    g_window = SDL_CreateWindow("SDL Tutorial", SDL_WINDOWPOS_UNDEFINE,
+				SDL_WINDOWPOS_UNDEFINE, SCREEN_WIDTH,
+				SCREEN_HEIGHT, SDL_WINDO_SHOW);
+    if(g_window == NULL) {
+      printf("Window could not be created! SDL Error: %s\n", 
+	     SDL_GetError());
+      l_success = false;
+    }
+  }
+}
