@@ -1,0 +1,35 @@
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <stdio.h>
+#include <string>
+
+#define SCREEN_HEIGHT 1280
+#define SCREEN_WIDTH  720
+
+bool loadMedia();
+
+void close();
+
+bool init();
+
+int main() {
+  bool l_quit = false;
+  SDL_Event l_event;
+
+  if(!init()) {
+       printf("Failed to init\n");
+  } else {
+    while(!l_quit) {
+      while(SDL_PollEvent(&l_event) != 0) {
+	if(l_event.type == SDL_QUIT) {
+	  l_quit = true;
+	}
+      }
+      //CLear screen
+      SDL_SetRenderDrawColor(g_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+      SDL_RenderClear(g_renderer);
+    }
+  }
+  
+  return 0;
+}
