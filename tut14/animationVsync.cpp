@@ -1,0 +1,294 @@
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <stdio.h>
+#include <string>
+
+#define SCREEN_HEIGHT 480
+#define SCREEN_WIDTH  640
+
+class LTexture;
+//The window we'll be rendering to
+SDL_Window *g_window = NULL;
+
+//The window renderer
+SDL_Renderer *g_renderer = NULL;
+
+//Texture wrapper class
+class LTexture {
+public:
+  //Initializes variables
+  LTexture();
+
+  //Deakkicates memory
+  ~LTexture();
+
+  //Loads image at specified path
+  bool loadFromFile(std::string path);
+
+  //Deallocates texture
+  void free();
+
+  //Set color modulation
+  void setColor(Uint8 red, Uint8 green, Uint8 blue);
+
+  //Set blending
+  void setBlendMode(SDL_BlendMode blending);
+
+  //Set alpha modulation
+  void setAlpha(Uint8 alpha);
+
+  //Renders Texture at given point
+  void render(int x, int y, SDL_Rect *clip = NULL);
+
+  //Gets image dimensions
+  int getWidth();
+  int getHeight();
+
+private:
+  //The actual hardware texture
+  SDL_Texture *m_texture;
+
+  //Image dimensions
+  int m_width;
+  int m_height;
+};
+
+//Scenee texture
+LTexture g_modulatedTexture;
+LTexture g_backgroundTexture;
+
+//Walking animation
+const int WALKING_ANIMATION_FRAMES = 4;
+SDL_Rect g_spriteClips[WALKING_ANIMATION_FRAMES];
+LTexture g_spriteSheetTexture;
+
+LTexture::LTexture() {
+  //Initialize
+  m_texture = NULL;
+  m_width   = 0;
+  m_height  = 0;
+}
+
+LTexture::~LTexture() {
+  //Deallocate
+  free();
+}
+
+bool LTexture::loadFromFile(std::string path) {
+  //Get rid of preexisting texture
+  free();
+
+  //The final texture
+  SDL_Texture *newTexture = NULL;
+  
+  //Load image at specified path
+  SDL_Surface *loadedSurface = IMG_Load(path.c_str());
+  if(loadedSurface == NULL) {
+    printf("Unable to load image %s! SDL_image Error: %s\n", path.c_str(), IMG_GetError());
+  } else {
+    //Color key image
+    SDL_SetColorKey(loadedSurface, SDL_TRUE, SDL_MapRGB(loadedSurface->format, 0, 0xFF, 0xFF));
+
+    //Create texture from surface pixels
+    newTexture = SDL_CreateTextureFromSurface(g_renderer, loadedSurface);
+    if(newTexture == NULL) {
+      printf("Unable to create texture from %s! SDL Error: %s\n", path.c_str(), SDL_GetError());
+    } else {
+      //Get image dimensions
+      m_width  = loadedSurface->w;
+      m_height = loadedSurface->h;
+    }
+    //Get rid of ol loaded surface
+    SDL_FreeSurface(loadedSurface);
+  }
+  //Return success
+  m_texture = newTexture;
+  return m_texture != NULL;
+}
+
+void LTexture::free() {
+  //Free texture if it exists
+  if(m_texture != NULL) {
+    SDL_DestroyTexture(m_texture);
+    m_texture = NULL;
+    m_width   = 0;
+    m_height  = 0;
+  }
+}
+
+void LTexture::setColor(Uint8 red, Uint8 green, Uint8 blue) {
+  //Modulate texture
+  SDL_SetTextureColorMod(m_texture, red, green, blue);
+}
+
+void LTexture::render(int x, int y, SDL_Rect *clip) {
+  //Set rendering space and render to screen
+  SDL_Rect renderQuad = {x, y, m_width, m_height};
+
+  //Set clip rendering dimensions
+  if(clip != NULL) {
+    renderQuad.w = clip->w;
+    renderQuad.h = clip->h;
+  }
+
+  //Render to screen
+  SDL_RenderCopy(g_renderer, m_texture, clip, &renderQuad);
+}
+
+int LTexture::getWidth() {
+  return m_width;
+}
+
+int LTexture::getHeight() {
+  return m_height;
+}
+
+void LTexture::setBlendMode(SDL_BlendMode blending) {
+  //Set blending function
+  SDL_SetTextureBlendMode(m_texture, blending);
+}
+
+void LTexture::setAlpha(Uint8 alpha) {
+  //Modulate texture alpha
+  SDL_SetTextureAlphaMod(m_texture, alpha);
+}
+
+bool loadMedia() {
+  //Loading success flag
+  bool success = true;
+
+  //Load sprite sheet texture
+  if(!g_spriteSheetTexture.loadFromFile("./foo.png")) {
+    printf("Failed to load walking anumation texture!\n");
+    success = false;
+  } else {
+    //Set sprite clips
+    g_spriteClips[ 0 ].x =   0;
+    g_spriteClips[ 0 ].y =   0;
+    g_spriteClips[ 0 ].w =  64;
+    g_spriteClips[ 0 ].h = 205;
+    
+    g_spriteClips[ 1 ].x =  64;
+    g_spriteClips[ 1 ].y =   0;
+    g_spriteClips[ 1 ].w =  64;
+    g_spriteClips[ 1 ].h = 205;
+    
+    g_spriteClips[ 2 ].x = 128;
+    g_spriteClips[ 2 ].y =   0;
+    g_spriteClips[ 2 ].w =  64;
+    g_spriteClips[ 2 ].h = 205;
+
+    g_spriteClips[ 3 ].x = 196;
+    g_spriteClips[ 3 ].y =   0;
+    g_spriteClips[ 3 ].w =  64;
+    g_spriteClips[ 3 ].h = 205;
+  }
+  return success;
+}
+
+bool init() {
+  bool l_success = true;
+
+  if(SDL_Init(SDL_INIT_VIDEO) < 0) {
+    printf("SDL could not initialize! SDL Error: %s\n",
+	   SDL_GetError());
+    l_success = false;
+  } else {
+    if(!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1")) {
+      printf("Warning: Linear texture filtering not enabled");
+    }  
+    //Create window
+    g_window = SDL_CreateWindow("SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, 
+				SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH,
+				SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+  
+    if(g_window == NULL) {
+      printf("Window could not be created! SDL Error: %s\n",
+	     SDL_GetError());
+      l_success = false;
+    } else {
+      //Creates vsynced renderer for window
+      g_renderer = SDL_CreateRenderer(g_window, -1,
+				      SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+      if(g_renderer == NULL) {
+	printf("Renderer could not be created! SDL Error:%s\n",
+	       SDL_GetError());
+	l_success = false;
+      } else {
+	SDL_SetRenderDrawColor(g_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+	int imgFlags = IMG_INIT_PNG;
+	if(!(IMG_Init(imgFlags) & imgFlags)) {
+	  printf("SDL_image could not initialize! SDL_image Error: %s\n",
+		 IMG_GetError());
+	  l_success = false;
+	}
+      }
+    }
+  }
+  return l_success;
+}
+
+void close() {
+  //Free loaded images
+  g_modulatedTexture.free();
+
+  //Destroy window
+  SDL_DestroyRenderer(g_renderer);
+  SDL_DestroyWindow(g_window);
+  g_window   = NULL;
+  g_renderer = NULL;
+
+  //Quit SDL subsystem
+  IMG_Quit();
+  SDL_Quit();
+}
+
+int main() {
+  bool quit = false;
+  SDL_Event e;
+
+  //Current animation frame
+  int l_frame = 0;
+
+  if(!init()) {
+    printf("Failed to initialize!\n");
+    return -1;
+  }
+
+  if(!loadMedia()) {
+    printf("Failed to load media!\n");
+    return -1;
+  }
+  
+  //While application is running
+  while(!quit) {
+    //Handle events on queue
+    while(SDL_PollEvent(&e) != 0) {
+      //User request quit
+      if(e.type == SDL_QUIT) {
+	quit = true;
+      }
+    }
+    //Clear screen
+    SDL_SetRenderDrawColor(g_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    SDL_RenderClear(g_renderer);
+    
+    //Render current frame
+    SDL_Rect *currentClip = &g_spriteClips[l_frame / 4];
+    g_spriteSheetTexture.render((SCREEN_WIDTH - currentClip->w) / 2, (SCREEN_HEIGHT - currentClip->h) /2, currentClip);
+    
+    //Update screen
+    SDL_RenderPresent(g_renderer);
+
+    //Go to next frame
+    ++l_frame;
+
+    //Cycle animation
+    if(l_frame / 4 >= WALKING_ANIMATION_FRAMES) {
+      l_frame = 0;
+    }
+  }
+  close();
+  return 0;
+}
+
