@@ -3,20 +3,10 @@
 #include <SDL2/SDL_ttf.h>
 #include <stdio.h>
 #include <string>
-#include <cmath>
+#include <sstream>
 
-#define SCREEN_HEIGHT 480
-#define SCREEN_WIDTH  640
-
-class LTexture;
-//The window we'll be rendering to
-SDL_Window *g_window = NULL;
-
-//The window renderer
-SDL_Renderer *g_renderer = NULL;
-
-//Globaly used font
-TTF_Font *g_font = NULL;
+const int SCREEN_HEIGHT = 480;
+const int SCREEN_WIDTH  = 640;
 
 //Texture wrapper class
 class LTexture {
@@ -30,8 +20,10 @@ public:
   //Loads image at specified path
   bool loadFromFile(std::string path);
 
+  #ifdef _SDL_TTF_H
   //Creates image from font string
-  bool loadFromRendererdText(std::string textureText, SDL_Color textColor);
+  bool loadFromRenderedText(std::string textureText, SDL_Color textColor);
+  #endif
 
   //Deallocates texture
   void free();
@@ -61,12 +53,17 @@ private:
   int m_height;
 };
 
-//Scenee texture
-LTexture g_modulatedTexture;
-LTexture g_backgroundTexture;
+//The window we'll be rendering to
+SDL_Window *g_window = NULL;
 
-//Rendered texture
+//The window renderer
+SDL_Renderer *g_renderer = NULL;
+
 LTexture g_texture;
+LTexture g_timeTextTexture;
+
+//global font
+TTF_Font *g_font = NULL;
 
 LTexture::LTexture() {
   //Initialize
@@ -112,7 +109,8 @@ bool LTexture::loadFromFile(std::string path) {
   return m_texture != NULL;
 }
 
-bool LTexture::loadFromRendererdText(std::string textureText, SDL_Color textColor) {
+#ifdef _SDL_TTF_H
+bool LTexture::loadFromRenderedText(std::string textureText, SDL_Color textColor) {
   bool success = true;
   //Get rid of preexisting texture
   free();
@@ -138,6 +136,7 @@ bool LTexture::loadFromRendererdText(std::string textureText, SDL_Color textColo
   }
   return success;
 }
+#endif
 
 void LTexture::free() {
   //Free texture if it exists
@@ -188,19 +187,22 @@ void LTexture::setAlpha(Uint8 alpha) {
 }
 
 bool loadMedia() {
-  //Loading success flag
+ //Loading success flag
   bool success = true;
-
+  
   //Open the font
   g_font = TTF_OpenFont("lazy.ttf", 28);
   if(g_font == NULL) {
-    printf("Failed to load lazy font! SDL_ttf Error: %s\n", TTF_GetError());
+    printf( "Failed to load lazy font! SDL_ttf Error: %s\n", TTF_GetError() );
     success = false;
   } else {
-    //Render text
-    SDL_Color textColor {0, 0, 0};
-    if(!g_texture.loadFromRendererdText("The quick brown fox jumps over the lazy dog", textColor)) {
-      printf("Failed to render text texture!\n");
+    //Set text color as black
+    SDL_Color textColor = { 0, 0, 0, 255 };
+    
+    //Load prompt texture
+    if( !g_texture.loadFromRenderedText( "Press Enter to Reset Start Time.", 
+						  textColor ) ) {
+      printf( "Unable to render prompt texture!\n" );
       success = false;
     }
   }
@@ -209,12 +211,13 @@ bool loadMedia() {
 
 bool init() {
   bool l_success = true;
-
+  
   if(SDL_Init(SDL_INIT_VIDEO) < 0) {
     printf("SDL could not initialize! SDL Error: %s\n",
 	   SDL_GetError());
     l_success = false;
   } else {
+    //Set texture filtering to linear
     if(!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1")) {
       printf("Warning: Linear texture filtering not enabled");
     }  
@@ -236,6 +239,7 @@ bool init() {
 	       SDL_GetError());
 	l_success = false;
       } else {
+	//Initialize render color
 	SDL_SetRenderDrawColor(g_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
 
 	//Initialize PNG loading
@@ -245,8 +249,9 @@ bool init() {
 		 IMG_GetError());
 	  l_success = false;
 	}
+
 	//Initialize SDL_ttf
-	if(TTF_Init() == -1) {
+	if(TTF_Init() == -1 ) {
 	  printf("SDL_ttf could not initialize! SDL_ttf Error: %s\n", TTF_GetError());
 	  l_success = false;
 	}
@@ -259,6 +264,7 @@ bool init() {
 void close() {
   //Free loaded images
   g_texture.free();
+  g_timeTextTexture.free();
 
   //Free global font
   TTF_CloseFont(g_font);
@@ -272,14 +278,11 @@ void close() {
 
   //Quit SDL subsystem
   IMG_Quit();
-  TTF_Quit();
   SDL_Quit();
+  TTF_Quit();
 }
 
 int main() {
-  bool quit = false;
-  SDL_Event e;
-
   if(!init()) {
     printf("Failed to initialize!\n");
     return -1;
@@ -289,7 +292,22 @@ int main() {
     printf("Failed to load media!\n");
     return -1;
   }
-  
+
+  //Main loop flag
+  bool quit = false;
+
+  //Event handler
+  SDL_Event e;
+
+  //Set tet color as black
+  SDL_Color textColor = {0, 0, 0, 255};
+
+  //Current time start time
+  Uint32 startTime = 0;
+
+  //In memory text stream
+  std::stringstream timeText;
+
   //While application is running
   while(!quit) {
     //Handle events on queue
@@ -297,15 +315,29 @@ int main() {
       //User request quit
       if(e.type == SDL_QUIT) {
 	quit = true;
+      } //Reset start time on retun keypress
+      else if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RETURN) {
+	startTime = SDL_GetTicks();
       }
     }
+    
+    //Set text to be rendered
+    timeText.str("");
+    timeText << "Milliseconds since start time " << SDL_GetTicks() - startTime;
+    
+    //Render text
+    if(!g_timeTextTexture.loadFromRenderedText(timeText.str().c_str(), textColor)) {
+      printf("Unable to render time texture!\n");
+    }
+
     //Clear screen
     SDL_SetRenderDrawColor(g_renderer, 0xFF, 0xFF, 0xFF, 0xFF);
     SDL_RenderClear(g_renderer);
     
-    //Render current frame
-    g_texture.render((SCREEN_WIDTH - g_texture.getWidth() ) / 2, 
-		     ( SCREEN_HEIGHT - g_texture.getHeight() ) / 2);
+    //Render current texture
+    g_texture.render((SCREEN_WIDTH - g_texture.getWidth()) / 2, 0);
+    g_timeTextTexture.render((SCREEN_WIDTH - g_texture.getWidth()) / 2, 
+			     (SCREEN_HEIGHT - g_texture.getHeight()) / 2);
     
     //Update screen
     SDL_RenderPresent(g_renderer);
@@ -313,4 +345,3 @@ int main() {
   close();
   return 0;
 }
-
