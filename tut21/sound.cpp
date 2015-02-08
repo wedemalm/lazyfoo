@@ -344,6 +344,7 @@ int main() {
 	switch (e.key.keysym.sym) {
 	  //Play high sound effect
 	case SDLK_1:
+	  printf("1 \n");
 	  Mix_PlayChannel(-1, g_high, 0);
 	  break;
 
